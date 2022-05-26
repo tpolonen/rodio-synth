@@ -1,6 +1,7 @@
 use core::time::Duration;
-use rodio::{OutputStream, source::Source};
+use rodio::{OutputStream, source::Source, Sink};
 
+#[derive(Clone)]
 struct WavetableOscillator {
 	sample_rate: u32,
 	wave_table: Vec<f32>,
@@ -9,6 +10,7 @@ struct WavetableOscillator {
 }
 
 impl WavetableOscillator {
+
 	fn new(sample_rate: u32, wave_table: Vec<f32>) -> WavetableOscillator {
 		return WavetableOscillator {
 			sample_rate: sample_rate,
@@ -106,35 +108,58 @@ fn main() {
 		} );
 	}
 
-	let mut oscillator = WavetableOscillator::new(44100, sine_table);
-	
-	oscillator.set_frequency(220.0);
+	/* println!("sine");
+	let mut sine_oscillator = WavetableOscillator::new(44100, sine_table);
+	sine_oscillator.set_frequency(220.0);
+	sine_oscillator.set_frequency(120.0);
+	let sine_beat = sine_oscillator.clone().take_duration(std::time::Duration::from_secs(1));
 	let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-	let _result = stream_handle.play_raw(oscillator.convert_samples());
+	let sink = Sink::try_new(&stream_handle).unwrap();
+	let mut saw_oscillator = WavetableOscillator::new(44100, saw_table);
+	saw_oscillator.set_frequency(440.0);
+	sink.append(saw_oscillator.take_duration(std::time::Duration::from_secs(1)));
+	let new_beat = sine_beat.clone();
+	sink.append(sine_oscillator.clone().take_duration(std::time::Duration::from_secs(1)));
+	sink.append(sine_oscillator.clone().take_duration(std::time::Duration::from_secs(1)));
+	sink.set_volume(0.5);
+	sink.sleep_until_end(); */
 
-	std::thread::sleep(std::time::Duration::from_secs(2));
-
-	let mut oscillator = WavetableOscillator::new(44100, saw_table);
-	
-	oscillator.set_frequency(220.0);
 	let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-	let _result = stream_handle.play_raw(oscillator.convert_samples());
+	let sink = Sink::try_new(&stream_handle).unwrap();
+	let sink2 = Sink::try_new(&stream_handle).unwrap();
 
-	std::thread::sleep(std::time::Duration::from_secs(2));
+	let mut sine_oscillator = WavetableOscillator::new(44100, sine_table);
+	let mut triangle_oscillator = WavetableOscillator::new(44100, triangle_table);
+	//C
+	sine_oscillator.set_frequency(261.63);
+	sink.append(sine_oscillator.clone().take_duration(std::time::Duration::from_secs_f32(0.5)));
+	//D
+	sine_oscillator.set_frequency(293.66);
+	sink.append(sine_oscillator.clone().take_duration(std::time::Duration::from_secs_f32(0.5)));
+	//E
+	sine_oscillator.set_frequency(329.63);
+	sink.append(sine_oscillator.clone().take_duration(std::time::Duration::from_secs_f32(0.5)));
+	//F
+	sine_oscillator.set_frequency(349.23);
+	sink.append(sine_oscillator.clone().take_duration(std::time::Duration::from_secs_f32(0.5)));
+	//E
+	sine_oscillator.set_frequency(329.63);
+	sink.append(sine_oscillator.clone().take_duration(std::time::Duration::from_secs_f32(0.5)));
+	//D
+	sine_oscillator.set_frequency(293.66);
+	sink.append(sine_oscillator.clone().take_duration(std::time::Duration::from_secs_f32(0.5)));
 
-	let mut oscillator = WavetableOscillator::new(44100, square_table);
+	//C
+	triangle_oscillator.set_frequency(261.63);
+	sink2.append(triangle_oscillator.clone().take_duration(std::time::Duration::from_secs_f32(1.5)));
+	//D
+	triangle_oscillator.set_frequency(293.66);
+	sink2.append(triangle_oscillator.clone().take_duration(std::time::Duration::from_secs_f32(1.5)));
+
+	sink.set_volume(0.5);
+	sink2.set_volume(0.5);
+	sink.sleep_until_end();
+	sink2.sleep_until_end();
 	
-	oscillator.set_frequency(220.0);
-	let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-	let _result = stream_handle.play_raw(oscillator.convert_samples());
-
-	std::thread::sleep(std::time::Duration::from_secs(2));
-
-	let mut oscillator = WavetableOscillator::new(44100, triangle_table);
-	
-	oscillator.set_frequency(220.0);
-	let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-	let _result = stream_handle.play_raw(oscillator.convert_samples());
-
-	std::thread::sleep(std::time::Duration::from_secs(2));
+//	std::thread::sleep(std::time::Duration::from_secs(2));
 }
