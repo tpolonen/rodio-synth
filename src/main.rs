@@ -91,9 +91,6 @@ fn main() {
 	let mut square_table: Vec<f32> = Vec::with_capacity(wave_table_size);
 	let mut triangle_table: Vec<f32> = Vec::with_capacity(wave_table_size);
 
-	let saw_iterations = 10;
-	let triangle_iterations = 10;
-
 	for n in 1..wave_table_size {
 		sine_table.push((2.0 * std::f32::consts::PI * n as f32 / wave_table_size as f32).sin());
 	}
