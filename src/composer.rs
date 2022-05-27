@@ -4,22 +4,57 @@ use rodio::{OutputStream, source::Source, Sink};
 const VOL_MULTIPLIER: f32 = 0.5;
 const SAMPLE_RATE: u32 = 44100;
 
-struct Note {
-	pitch: f32,
-	duration: f32,
+pub enum Instruments {
+	Sine,
+	Saw,
+	Square,
+	Triangle,
 }
 
-struct Track {
-	instrument: &str,
-	oscillator: WavetableOscillator,
-	sink: Sink,
-	volume: f32,
-	notes: Vec<Note>,
-	duration: f32,
+#[derive(Copy, Clone)]
+pub struct Note {
+	pub pitch: f32,
+	pub duration: f32,
+}
+
+pub struct ProtoTrack {
+	pub instrument: Instruments,
+	pub notes: Vec<Note>,
+	pub tempo: u32,
+}
+
+impl ProtoTrack {
+	fn new(instrument: Instruments) -> ProtoTrack {
+		return ProtoTrack {
+			instrument, 
+			notes: Vec::new(),
+			tempo: 0,
+		}
+	}
+}
+
+pub struct Track {
+	pub oscillator: WavetableOscillator,
+	pub sink: Sink,
+	pub notes: Vec<Note>,
+	pub volume: f32,
+	pub duration: f32,
+}
+
+impl Track {
+	fn new(oscillator: WavetableOscillator, sink: Sink, notes: Vec<Note>) -> Track {
+		return Track {
+			oscillator,
+			sink,
+			notes,
+			volume: 1.0,
+			duration: 0.0,
+		}
+	}
 }
 
 #[derive(Clone)]
-struct WavetableOscillator {
+pub struct WavetableOscillator {
 	sample_rate: u32,
 	wave_table: Vec<f32>,
 	index: f32,
@@ -66,16 +101,16 @@ impl WavetableOscillator {
 } 
 
 impl Source for WavetableOscillator {
+	fn current_frame_len(&self) -> Option<usize> {
+		return None;
+	}
+
 	fn channels(&self) -> u16 {
 		return 1;
-	}
+	}   
 
 	fn sample_rate(&self) -> u32 {
 		return self.sample_rate;
-	}   
-
-	fn current_frame_len(&self) -> Option<usize> {
-		return None;
 	}
 
 	fn total_duration(&self) -> Option<Duration> {
@@ -91,10 +126,9 @@ impl Iterator for WavetableOscillator {
 	}
 }
 
-fn play_song(tracks: Vec<Track>) -> Result<char, &str> {
+pub fn play_song(prototracks: Vec<ProtoTrack>) -> Result<char, ()> {
 
 	//initialize wave tables
-
 	let wave_table_size = 128;
 	let mut sine_table: Vec<f32> = Vec::with_capacity(wave_table_size);
 	let mut saw_table: Vec<f32> = Vec::with_capacity(wave_table_size);
@@ -121,49 +155,45 @@ fn play_song(tracks: Vec<Track>) -> Result<char, &str> {
 		} );
 	}
 
-	//create infinite source from each wavetable
-	let sine_oscillator = WavetableOscillator::new(SAMPLE_RATE, sine_table);
-	let saw_oscillator = WavetableOscillator::new(SAMPLE_RATE, saw_table);
-	let square_oscillator = WavetableOscillator::new(SAMPLE_RATE, square_table);
-	let triangle_oscillator = WavetableOscillator::new(SAMPLE_RATE, triangle_table);
-
 	//create output stream
 	let (_stream, stream_handle) = OutputStream::try_default().unwrap();
 
-	//track processing works like this:
-	//0. clone appropriate oscillator for the track to use
-	//1. create sink for the track -> sinks are automatically connected 
-	//	to output stream
-	//2. add each note to sink's buffer
+	//convert prototracks to tracks
+	let mut tracks: Vec<Track> = Vec::new();
+
+	for proto in prototracks.iter(){
+		tracks.push(
+			Track::new(WavetableOscillator::new(SAMPLE_RATE, match &proto.instrument {
+				Instruments::Sine => sine_table.clone(),
+				Instruments::Saw => saw_table.clone(),
+				Instruments::Square => square_table.clone(),
+				Instruments::Triangle => triangle_table.clone(),
+			}), 
+			Sink::try_new(&stream_handle).unwrap(), 
+			proto.notes.clone())
+		)
+	}
+
 	for track in tracks.iter_mut() {
 		track.duration = 0.0;
-		track.oscillator = {
-			match track.instrument {
-				"sine" => sine_oscillator.clone(),
-				"saw" => saw_oscillator.clone(),
-				"square" => square_oscillator.clone(),
-				"triangle" => triangle_oscillator.clone(),
-			}
-		};
-		track.sink = Sink::try_new(&stream_handle).unwrap();
 		track.sink.pause();
+		track.sink.set_volume(VOL_MULTIPLIER);
 		for note in track.notes.iter() {
-			track.duration += notes.duration;
+			track.duration += note.duration;
 			track.oscillator.set_frequency(note.pitch);
 			track.sink.append(track.oscillator.clone().take_duration(std::time::Duration::from_secs_f32(note.duration)));
 		}
 	}
-	let ref mut longest_track : Track = None;
+
+	//we set each track to play at the same time; we also keep track on which track is the longest
+	//so we don't stop executing program while it's still running.
 	let mut longest_duration : f32 = 0.0;
 	for track in tracks.iter_mut() {
 		track.sink.play();
-		if track.duration > longest_duration {
-			longest_track = &track;
-			longest_duration = track.duration;
-		}
+		if track.duration > longest_duration {longest_duration = track.duration}
 	}
 
-	longest_track.sink.sleep_until_end();
+	std::thread::sleep(std::time::Duration::from_secs_f32(longest_duration));
 
 	Ok('👍')
 }
