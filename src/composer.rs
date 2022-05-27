@@ -1,5 +1,6 @@
 use core::time::Duration;
 use rodio::{OutputStream, source::Source, Sink};
+use rand::Rng;
 
 const VOL_MULTIPLIER: f32 = 0.5;
 const SAMPLE_RATE: u32 = 44100;
@@ -9,12 +10,23 @@ pub enum Instruments {
 	Saw,
 	Square,
 	Triangle,
+	Snare,
+	Kick,
 }
 
 #[derive(Copy, Clone)]
 pub struct Note {
 	pub pitch: f32,
 	pub duration: f32,
+}
+
+impl Note {
+	fn new(pitch: f32, duration: f32) -> Note {
+		return Note {
+			pitch,
+			duration,
+		}
+	}
 }
 
 pub struct ProtoTrack {
@@ -39,16 +51,18 @@ pub struct Track {
 	pub notes: Vec<Note>,
 	pub volume: f32,
 	pub duration: f32,
+	pub tempo: u32,
 }
 
 impl Track {
-	fn new(oscillator: WavetableOscillator, sink: Sink, notes: Vec<Note>) -> Track {
+	fn new(oscillator: WavetableOscillator, sink: Sink, notes: Vec<Note>, tempo: u32) -> Track {
 		return Track {
 			oscillator,
 			sink,
 			notes,
 			volume: 1.0,
 			duration: 0.0,
+			tempo,
 		}
 	}
 }
@@ -78,7 +92,7 @@ impl WavetableOscillator {
 
 	fn set_frequency(&mut self, frequency: f32) {
 		self.index_increment = frequency * self.wave_table.len() as f32 
-							   / self.sample_rate as f32;
+								/ self.sample_rate as f32;
 	}
 
 	fn get_sample(&mut self) -> f32 {
@@ -128,12 +142,15 @@ impl Iterator for WavetableOscillator {
 
 pub fn play_song(prototracks: Vec<ProtoTrack>) -> Result<char, ()> {
 
+	let mut rng = rand::thread_rng();
+
 	//initialize wave tables
 	let wave_table_size = 128;
 	let mut sine_table: Vec<f32> = Vec::with_capacity(wave_table_size);
 	let mut saw_table: Vec<f32> = Vec::with_capacity(wave_table_size);
 	let mut square_table: Vec<f32> = Vec::with_capacity(wave_table_size);
 	let mut triangle_table: Vec<f32> = Vec::with_capacity(wave_table_size);
+	let mut noise_table: Vec<f32> = Vec::with_capacity(wave_table_size);
 
 	//fill each wave table
 	for n in 0..wave_table_size {
@@ -155,6 +172,12 @@ pub fn play_song(prototracks: Vec<ProtoTrack>) -> Result<char, ()> {
 		} );
 	}
 
+	for _n in 0..wave_table_size {
+		noise_table.push({
+			(rng.gen::<f32>() * 2.00) - 1.00
+		})
+	}
+
 	//create output stream
 	let (_stream, stream_handle) = OutputStream::try_default().unwrap();
 
@@ -168,9 +191,12 @@ pub fn play_song(prototracks: Vec<ProtoTrack>) -> Result<char, ()> {
 				Instruments::Saw => saw_table.clone(),
 				Instruments::Square => square_table.clone(),
 				Instruments::Triangle => triangle_table.clone(),
+				Instruments::Snare => noise_table.clone(),
+				Instruments::Kick => noise_table.clone(),
 			}), 
 			Sink::try_new(&stream_handle).unwrap(), 
-			proto.notes.clone())
+			proto.notes.clone(),
+			proto.tempo)
 		)
 	}
 
@@ -179,9 +205,9 @@ pub fn play_song(prototracks: Vec<ProtoTrack>) -> Result<char, ()> {
 		track.sink.pause();
 		track.sink.set_volume(VOL_MULTIPLIER);
 		for note in track.notes.iter() {
-			track.duration += note.duration;
+			track.duration += note.duration * (60.0 / track.tempo as f32);
 			track.oscillator.set_frequency(note.pitch);
-			track.sink.append(track.oscillator.clone().take_duration(std::time::Duration::from_secs_f32(note.duration)));
+			track.sink.append(track.oscillator.clone().take_duration(std::time::Duration::from_secs_f32(note.duration * (60.0 / track.tempo as f32))));
 		}
 	}
 

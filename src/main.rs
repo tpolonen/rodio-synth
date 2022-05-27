@@ -2,8 +2,6 @@ pub mod composer;
 
 use composer::*;
 
-const VOL_MULTIPLIER: f32 = 0.5;
-
 fn main() {
 
 	let triangle_notes: Vec<Note> = vec![
@@ -48,14 +46,14 @@ fn main() {
 		ProtoTrack {
 			instrument: Instruments::Triangle,
 			notes: triangle_notes,
-			tempo: 100,
+			tempo: 40,
 		},
 		ProtoTrack {
 			instrument: Instruments::Sine,
 			notes: sine_notes,
-			tempo: 100,
+			tempo: 40,
 		},
 	];
 
-	composer::play_song(prototracks);
+	println!("{}", composer::play_song(prototracks).unwrap());
 }
